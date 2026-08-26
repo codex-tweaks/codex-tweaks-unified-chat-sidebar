@@ -1,0 +1,24 @@
+/* Codex 模式下复用 ChatGPT 原生标题尾部来源文字与 hover 触发方式。 */
+html[data-codex-tweaks-unified-chat-sidebar]
+  [data-codex-tweaks-unified-sidebar-created-source-label] {
+  white-space: nowrap;
+}
+
+/* 原生文字内容保持不动；需要改名时仅隐藏原节点并显示独立标签。 */
+html[data-codex-tweaks-unified-chat-sidebar]
+  [data-codex-tweaks-unified-sidebar-native-source-label] {
+  display: none !important;
+}
+
+/* 缺少原生标题容器的 Codex 行直接插入同级标签，不再搬动 React 节点。 */
+html[data-codex-tweaks-unified-chat-sidebar]
+  [data-codex-tweaks-unified-sidebar-created-source-container]
+  > [data-thread-title="true"] {
+  flex: 0 1 auto !important;
+}
+
+html[data-codex-tweaks-unified-chat-sidebar]
+  [data-codex-tweaks-unified-sidebar-created-source-container]
+  > [data-codex-tweaks-unified-sidebar-created-source-label] {
+  margin-inline-start: -0.25rem;
+}

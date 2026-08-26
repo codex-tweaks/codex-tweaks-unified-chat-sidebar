@@ -1,0 +1,22 @@
+{
+  "name": "ct-unified-chat-sidebar",
+  "version": "1.0.0",
+  "description": "在 Codex 模式中显示 ChatGPT 聊天入口、统一聊天记录与手动刷新。",
+  "keywords": ["codex-tweaks-package", "codex-tweaks-layout", "codex-tweaks-workflow", "codex-tweaks-chat"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codex-tweaks/codex-tweaks-unified-chat-sidebar.git"
+  },
+  "homepage": "https://github.com/codex-tweaks/codex-tweaks-unified-chat-sidebar",
+  "type": "module",
+  "dependencies": {},
+  "codexTweaks": {
+    "apiVersion": 3,
+    "entrypoints": {
+      "renderer": "src/index.js"
+    },
+    "priority": 30,
+    "packageDependencies": {}
+  }
+}

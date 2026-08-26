@@ -1,0 +1,27 @@
+/* 刷新按钮沿用 Codex 原生按钮样式；这里只限定刷新中的图标反馈。 */
+html[data-codex-tweaks-unified-sidebar-refresh]
+  button[data-codex-tweaks-unified-sidebar-refresh-button]
+  svg {
+  transform-origin: center;
+}
+
+html[data-codex-tweaks-unified-sidebar-refresh]
+  button[data-codex-tweaks-unified-sidebar-refresh-button][data-codex-tweaks-unified-sidebar-refreshing]
+  svg {
+  animation: codex-tweaks-unified-sidebar-refresh-spin 700ms linear infinite;
+}
+
+@keyframes codex-tweaks-unified-sidebar-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-codex-tweaks-unified-sidebar-refresh]
+    button[data-codex-tweaks-unified-sidebar-refresh-button][data-codex-tweaks-unified-sidebar-refreshing]
+    svg {
+    animation: none;
+    opacity: 0.6;
+  }
+}
