@@ -277,10 +277,10 @@ async function loadNativeModeSetter() {
     const definition = assetSource.match(
       /function ([\w$]+)\(([\w$]+),([\w$]+)\)\{\3===`chat`&&\2\.get\([\w$]+\)\|\|\2\.set\([\w$]+,\3\)\}/,
     );
-    const functionName = definition?.[1] ?? "TW";
-    const exportAlias = assetSource.match(
-      new RegExp("\\b" + functionName + " as ([\\w$]+)"),
-    )?.[1];
+    const functionName = definition?.[1];
+    // 压缩后的名称可能包含 $；按完整标识符比较，避免将名称当作正则。
+    const exportAlias = [...assetSource.matchAll(/([\w$]+) as ([\w$]+)/g)]
+      .find((entry) => entry[1] === functionName)?.[2];
     if (!exportAlias) throw new Error("未找到原生撰写器模式切换函数");
 
     const appModule = await import(assetUrl);

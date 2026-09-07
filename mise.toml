@@ -1,0 +1,10 @@
+[tools]
+node = "24.16.0"
+
+[tasks.check]
+description = "检查功能包 JavaScript 语法"
+run = "for file in src/*.js; do node --check \"$file\" || exit; done"
+
+[tasks.inspect]
+description = "使用项目 Node 执行本地诊断脚本"
+run = "node"
