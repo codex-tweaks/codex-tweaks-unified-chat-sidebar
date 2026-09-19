@@ -1,3 +1,5 @@
+import { createHomeModeReader, normalizeMode, readHomeMode } from "./home-state.js";
+
 export function activateHomeMode({ api, root }) {
 // 在顶部保持 Codex 模式时，为“新对话”页补回聊天 / Codex 选择器。
 // 选择器只改变 Codex 原生的 Home 撰写器模式状态，发送、建会话、项目与
@@ -12,6 +14,7 @@ const ATOM_PATCH_MARKER = Symbol.for(
 const ROOT_MARKER = "data-codex-tweaks-codex-home-mode-toggle";
 const ROOT_MODE_MARKER = "data-codex-tweaks-home-composer-mode";
 const TOGGLE_MARKER = "data-codex-tweaks-home-mode-toggle";
+const ANIMATE_MARKER = "data-codex-tweaks-home-mode-animate";
 const BUTTON_MARKER = "data-codex-tweaks-home-mode-button";
 const INDICATOR_MARKER = "data-codex-tweaks-home-mode-indicator";
 const FIBER_PROPERTY_PREFIX = "__reactFiber$";
@@ -27,27 +30,23 @@ let activeHomeInfo = null;
 let patchedModeAtom = null;
 let originalModeAtomRead = null;
 let patchedModeAtomRead = null;
+let patchedModeInfo = null;
 let toggleNode = null;
-let nativeModeSetter = null;
-let nativeModeSetterPromise = null;
-let nativeModeSetterFailed = false;
+let observedHeader = null;
+let observedContent = null;
 let warnedAboutUnsupportedClient = false;
+const getHomeModeInfo = createHomeModeReader();
+const positionObserver = new ResizeObserver(queueHomeScan);
 
 function isVisible(element) {
   if (!(element instanceof Element)) return false;
+  if (element.closest('[aria-hidden="true"], [inert]')) return false;
   const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
-}
-
-function getProductMode() {
-  for (const button of document.querySelectorAll(
-    'button[aria-label^="切换模式，当前模式："], button[aria-haspopup="menu"]',
-  )) {
-    if (!isVisible(button)) continue;
-    const label = button.textContent.trim();
-    if (label === "Codex" || label === "ChatGPT") return label;
-  }
-  return null;
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    getComputedStyle(element).visibility !== "hidden"
+  );
 }
 
 function getReactFiber(element) {
@@ -64,50 +63,14 @@ function getReactFiber(element) {
   return null;
 }
 
-function getHook(fiber, index) {
-  let hook = fiber?.memoizedState ?? null;
-  let remaining = index;
-
-  while (hook && remaining > 0) {
-    hook = hook.next;
-    remaining -= 1;
-  }
-
-  return hook;
-}
-
-function normalizeMode(mode) {
-  return mode === "chat" || mode === "work" ? mode : null;
-}
-
-function getHomeModeInfo(fiber) {
-  const scope = getHook(fiber, 0)?.memoizedState?.current;
-  const persistedMode = normalizeMode(getHook(fiber, 2)?.memoizedState);
-  const effectiveMode = normalizeMode(getHook(fiber, 6)?.memoizedState);
-  const atomPair = getHook(fiber, 5)?.memoizedState?.[1];
-  const atom = Array.isArray(atomPair) ? atomPair[1] : null;
-
-  if (
-    scope?.value?.routeKind !== "home" ||
-    typeof scope.get !== "function" ||
-    typeof scope.set !== "function" ||
-    !persistedMode ||
-    !effectiveMode ||
-    typeof atom?.read !== "function"
-  ) {
-    return null;
-  }
-
-  return { fiber, scope, atom, persistedMode, effectiveMode };
-}
-
 function findHomeModeInfo() {
   const candidates = [
     ...document.querySelectorAll('[role="main"]'),
     ...document.querySelectorAll('[data-codex-intelligence-trigger="true"]'),
     document.querySelector("main"),
     document.querySelector("[data-codex-composer]"),
-  ].filter(Boolean);
+    ...document.querySelectorAll('[contenteditable="true"][role="textbox"]'),
+  ].filter(isVisible);
 
   for (const element of new Set(candidates)) {
     let fiber = getReactFiber(element);
@@ -125,17 +88,33 @@ function findHomeModeInfo() {
 }
 
 function restoreModeAtom() {
-  if (
-    patchedModeAtom &&
-    patchedModeAtomRead &&
-    patchedModeAtom.read === patchedModeAtomRead
-  ) {
-    patchedModeAtom.read = originalModeAtomRead;
-  }
-
+  const info = patchedModeInfo;
+  const ownsPatch = info && info.atom.read === patchedModeAtomRead;
+  if (ownsPatch) info.atom.read = originalModeAtomRead;
   patchedModeAtom = null;
   originalModeAtomRead = null;
   patchedModeAtomRead = null;
+  patchedModeInfo = null;
+  if (!ownsPatch) return;
+
+  try {
+    // 改回 read 函数并不会使原生 store 的缓存失效；沿原生偏好订阅链刷新，
+    // 停用或离开首页后立即恢复客户端自己的模式判定。
+    const { store, persistedAtom, atom } = info;
+    const mode = store.get(persistedAtom);
+    const nativeMode = Reflect.apply(atom.read, atom, [
+      (dependency) => store.get(dependency),
+    ]);
+    if (store.get(atom) !== nativeMode) {
+      try {
+        store.set(persistedAtom, mode === "chat" ? "work" : "chat");
+      } finally {
+        store.set(persistedAtom, mode);
+      }
+    }
+  } catch (error) {
+    console.warn("[Codex Tweaks] 已恢复原生模式读取，未能立即刷新首页。", error);
+  }
 }
 
 function patchModeAtom(info) {
@@ -155,10 +134,10 @@ function patchModeAtom(info) {
   }
 
   patchedModeAtom = info.atom;
+  patchedModeInfo = info;
   originalModeAtomRead = info.atom.read;
-  patchedModeAtomRead = function codexTweaksHomeModeRead(...args) {
-    const nativeMode = Reflect.apply(originalModeAtomRead, this, args);
-    return normalizeMode(desiredMode) ?? nativeMode;
+  patchedModeAtomRead = function codexTweaksHomeModeRead(get, options) {
+    return readHomeMode(info, { get, options });
   };
   Object.defineProperty(patchedModeAtomRead, ATOM_PATCH_MARKER, {
     configurable: true,
@@ -170,22 +149,34 @@ function patchModeAtom(info) {
 
 function getHeaderHost() {
   const header = document.querySelector(
-    'header[data-pip-obstacle="app-shell-header"]',
+    'header[data-app-shell-header-layout], header[data-pip-obstacle="app-shell-header"]',
   );
-  if (!header) return null;
+  return isVisible(header) ? header : null;
+}
 
-  return (
-    [...header.children]
-      .filter(
-        (element) =>
-          element.getAttribute("aria-hidden") === "false" &&
-          isVisible(element),
-      )
-      .sort(
-        (left, right) =>
-          right.getBoundingClientRect().width -
-          left.getBoundingClientRect().width,
-      )[0] ?? null
+function updateTogglePosition(header) {
+  const surface = header.closest("[data-app-shell-main-surface]");
+  const viewport = surface?.querySelector(
+    "[data-app-shell-main-content-layout]",
+  );
+  const content = isVisible(viewport) ? viewport : surface ?? header;
+
+  if (observedHeader !== header || observedContent !== content) {
+    positionObserver.disconnect();
+    positionObserver.observe(header);
+    positionObserver.observe(content);
+    observedHeader = header;
+    observedContent = content;
+  }
+
+  // 标题栏左右按钮会随聊天 / Codex 模式变化；以主内容区域而非按钮之间
+  // 剩余的 flex 空间居中，切换时两个标签的位置保持不变。
+  const contentRect = content.getBoundingClientRect();
+  const headerRect = header.getBoundingClientRect();
+  const center = contentRect.left + contentRect.width / 2;
+  toggleNode.style.setProperty(
+    "--codex-tweaks-home-mode-x",
+    `${center - headerRect.left - header.clientLeft}px`,
   );
 }
 
@@ -224,102 +215,55 @@ function ensureToggleNode() {
 
   if (!toggleNode?.isConnected) {
     toggleNode = createToggleNode();
+    // 在插入和测量之前设好选中项，避免首帧从默认位置播放一次切换。
+    updateToggleNode();
     headerHost.append(toggleNode);
   } else if (toggleNode.parentElement !== headerHost) {
     headerHost.append(toggleNode);
   }
+  updateTogglePosition(headerHost);
 
   return toggleNode;
 }
 
-function updateToggleNode() {
-  const toggle = toggleNode?.isConnected ? toggleNode : null;
+function updateToggleNode({ animate = false } = {}) {
+  const toggle = toggleNode;
   const mode = normalizeMode(desiredMode) ?? "work";
   if (!toggle) return;
 
-  toggle.setAttribute("data-codex-tweaks-home-mode", mode);
-  toggle.toggleAttribute("aria-busy", !nativeModeSetter);
+  const previousMode = toggle.getAttribute("data-codex-tweaks-home-mode");
+  if (previousMode !== mode) {
+    toggle.toggleAttribute(
+      ANIMATE_MARKER,
+      animate && toggle.isConnected && normalizeMode(previousMode) !== null,
+    );
+    toggle.setAttribute("data-codex-tweaks-home-mode", mode);
+  }
 
   for (const button of toggle.querySelectorAll(`[${BUTTON_MARKER}]`)) {
     const selected = button.getAttribute(BUTTON_MARKER) === mode;
     button.setAttribute("aria-pressed", String(selected));
     button.toggleAttribute("data-codex-tweaks-home-mode-selected", selected);
-    button.disabled = nativeModeSetterFailed;
+    const nextMode = button.getAttribute(BUTTON_MARKER);
+    button.disabled =
+      !activeHomeInfo ||
+      readHomeMode(activeHomeInfo, { mode: nextMode }) !== nextMode;
   }
 
   document.documentElement.setAttribute(ROOT_MODE_MARKER, mode);
 }
 
-async function loadNativeModeSetter() {
-  if (nativeModeSetter) return nativeModeSetter;
-  if (nativeModeSetterPromise) return nativeModeSetterPromise;
-
-  nativeModeSetterPromise = (async () => {
-    const entryScript = [...document.scripts].find((script) =>
-      /\/assets\/index-[^/]+\.js$/.test(script.src),
-    );
-    if (!entryScript) throw new Error("未找到 Codex 入口脚本");
-
-    const entrySource = await fetch(entryScript.src).then((response) => {
-      if (!response.ok) throw new Error("无法读取 Codex 入口脚本");
-      return response.text();
-    });
-    const assetName = entrySource.match(
-      /\.\/(app-initial-[^"'`]+\.js)/,
-    )?.[1];
-    if (!assetName) throw new Error("未找到 Codex 初始资源");
-
-    const assetUrl = new URL("./" + assetName, entryScript.src).href;
-    const assetSource = await fetch(assetUrl).then((response) => {
-      if (!response.ok) throw new Error("无法读取 Codex 初始资源");
-      return response.text();
-    });
-    const definition = assetSource.match(
-      /function ([\w$]+)\(([\w$]+),([\w$]+)\)\{\3===`chat`&&\2\.get\([\w$]+\)\|\|\2\.set\([\w$]+,\3\)\}/,
-    );
-    const functionName = definition?.[1];
-    // 压缩后的名称可能包含 $；按完整标识符比较，避免将名称当作正则。
-    const exportAlias = [...assetSource.matchAll(/([\w$]+) as ([\w$]+)/g)]
-      .find((entry) => entry[1] === functionName)?.[2];
-    if (!exportAlias) throw new Error("未找到原生撰写器模式切换函数");
-
-    const appModule = await import(assetUrl);
-    const setter = appModule[exportAlias];
-    if (typeof setter !== "function") {
-      throw new Error("原生撰写器模式切换函数不可用");
-    }
-
-    nativeModeSetter = setter;
-    nativeModeSetterFailed = false;
-    return setter;
-  })().catch((error) => {
-    nativeModeSetterFailed = true;
-    if (!warnedAboutUnsupportedClient) {
-      warnedAboutUnsupportedClient = true;
-      console.warn(
-        "[Codex Tweaks] 无法启用 Codex 新对话模式选择器；客户端内部结构可能已变化。",
-        error,
-      );
-    }
-    throw error;
-  });
-
-  return nativeModeSetterPromise;
-}
-
-async function applyHomeMode(mode) {
+function applyHomeMode(mode, { animate = false } = {}) {
   const nextMode = normalizeMode(mode);
   if (!nextMode || disposed) return;
 
-  desiredMode = nextMode;
-  updateToggleNode();
-
   try {
-    const setter = await loadNativeModeSetter();
-    if (disposed || getProductMode() !== "Codex") return;
-
     const freshInfo = findHomeModeInfo();
     if (!freshInfo || freshInfo.scope !== activeHomeInfo?.scope) return;
+    if (freshInfo.store.get(freshInfo.productModeAtom) !== false) return;
+    if (readHomeMode(freshInfo, { mode: nextMode }) !== nextMode) return;
+    desiredMode = nextMode;
+    const { store, persistedAtom } = freshInfo;
 
     // 当持久值已是目标模式、但 Codex 原生派生值仍强制为 work 时，先写入
     // 相反值再写回目标值，以触发同一条原生订阅链重新计算。
@@ -327,26 +271,40 @@ async function applyHomeMode(mode) {
       freshInfo.persistedMode === nextMode &&
       freshInfo.effectiveMode !== nextMode
     ) {
-      setter(freshInfo.scope, nextMode === "chat" ? "work" : "chat");
+      try {
+        store.set(persistedAtom, nextMode === "chat" ? "work" : "chat");
+      } finally {
+        store.set(persistedAtom, nextMode);
+      }
+    } else {
+      store.set(persistedAtom, nextMode);
     }
-    setter(freshInfo.scope, nextMode);
+    updateToggleNode({ animate });
     queueHomeScan();
-  } catch {
+  } catch (error) {
     desiredMode = activeHomeInfo?.effectiveMode ?? "work";
     updateToggleNode();
+    if (!warnedAboutUnsupportedClient) {
+      warnedAboutUnsupportedClient = true;
+      console.warn("[Codex Tweaks] 无法切换新对话模式。", error);
+    }
   }
 }
 
 function removeToggleNode() {
+  positionObserver.disconnect();
+  observedHeader = null;
+  observedContent = null;
   toggleNode?.remove();
   toggleNode = null;
   document.documentElement.removeAttribute(ROOT_MARKER);
   document.documentElement.removeAttribute(ROOT_MODE_MARKER);
 }
 
-function deactivateHomeMode() {
+function hideHomeMode() {
   removeToggleNode();
-  restoreModeAtom();
+  // 首页模式 atom 属于应用作用域。跨页面保留适配，返回首页时原生组件
+  // 首次读取就能得到已选模式；完整恢复只在停用或替换该 atom 时进行。
   desiredMode = null;
   activeHomeInfo = null;
 }
@@ -355,31 +313,20 @@ function scanHomeMode() {
   scanQueued = false;
   if (disposed || !document.body) return;
 
-  if (getProductMode() !== "Codex") {
-    deactivateHomeMode();
-    return;
-  }
-
   const info = findHomeModeInfo();
-  if (!info) {
-    deactivateHomeMode();
+  if (!info || info.store.get(info.productModeAtom) !== false) {
+    hideHomeMode();
     return;
   }
 
   const homeChanged = activeHomeInfo?.scope !== info.scope;
-  if (homeChanged || !desiredMode) {
-    desiredMode = info.persistedMode ?? info.effectiveMode;
-  }
+  desiredMode = normalizeMode(readHomeMode(info)) ?? info.effectiveMode;
 
   activeHomeInfo = info;
   const atomChanged = patchModeAtom(info);
   document.documentElement.setAttribute(ROOT_MARKER, "");
   ensureToggleNode();
   updateToggleNode();
-
-  if (!nativeModeSetter && !nativeModeSetterFailed) {
-    loadNativeModeSetter().then(queueHomeScan).catch(updateToggleNode);
-  }
 
   if (
     (homeChanged || atomChanged) &&
@@ -401,7 +348,7 @@ function handleToggleClick(event) {
 
   event.preventDefault();
   event.stopPropagation();
-  applyHomeMode(button.getAttribute(BUTTON_MARKER));
+  applyHomeMode(button.getAttribute(BUTTON_MARKER), { animate: true });
 }
 
 const homeObserver = new MutationObserver(queueHomeScan);
