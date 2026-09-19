@@ -4,7 +4,7 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   position: absolute;
   z-index: 2;
   inset-block-start: 50%;
-  inset-inline-start: 50%;
+  left: var(--codex-tweaks-home-mode-x, 50%);
   isolation: isolate;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15,6 +15,7 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   padding: 2px;
   border-radius: 999px;
   pointer-events: auto;
+  -webkit-app-region: no-drag;
   transform: translate(-50%, -50%);
   user-select: none;
 }
@@ -25,6 +26,7 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   z-index: 0;
   inset: 0;
   border-radius: inherit;
+  pointer-events: none;
   background: var(--color-background-secondary);
 }
 
@@ -36,11 +38,17 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   grid-row: 1;
   margin-block: -1px;
   border-radius: 999px;
+  pointer-events: none;
   background: var(--color-background-primary);
   box-shadow:
     0 1px 3px rgb(0 0 0 / 12%),
     0 0 0 0.5px var(--color-border);
   transform: translateX(0);
+}
+
+html[data-codex-tweaks-codex-home-mode-toggle]
+  :where([data-codex-tweaks-home-mode-animate])
+  [data-codex-tweaks-home-mode-indicator] {
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
