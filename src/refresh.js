@@ -16,6 +16,17 @@ const RECENTS_SELECTOR =
   'section[data-app-action-sidebar-section-heading="Recents"]';
 const DEFAULT_LABEL = "刷新 ChatGPT 侧任务";
 const BUSY_LABEL = "正在刷新 ChatGPT 侧任务";
+const BUTTON_APPEARANCE_ATTRIBUTES = [
+  "data-color",
+  "data-variant",
+  "data-size",
+  "data-icon-size",
+  "data-gutter-size",
+  "data-uniform",
+  "data-pill",
+  "data-squircle",
+  "data-optically-align",
+];
 const runtimeHost = root ?? document.documentElement;
 
 runtimeHost[RUNTIME_KEY]?.cleanup?.();
@@ -102,12 +113,12 @@ async function refreshChatGptCatalog(section) {
 
 function createRefreshIcon() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", "20");
-  svg.setAttribute("height", "20");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
   svg.setAttribute("viewBox", "0 0 20 20");
   svg.setAttribute("fill", "none");
   svg.setAttribute("aria-hidden", "true");
-  svg.classList.add("icon-xs");
+  svg.setAttribute("focusable", "false");
 
   const path = document.createElementNS(
     "http://www.w3.org/2000/svg",
@@ -126,6 +137,7 @@ function updateButtonState(button) {
   if (!(button instanceof HTMLButtonElement)) return;
 
   button.disabled = refreshInProgress;
+  button.toggleAttribute("data-disabled", refreshInProgress);
   button.setAttribute(
     "aria-label",
     refreshInProgress ? BUSY_LABEL : DEFAULT_LABEL,
@@ -210,12 +222,28 @@ function getRefreshPlacement() {
   };
 }
 
+function syncButtonAppearance(button, referenceButton) {
+  // 新版原生按钮通过 data-* 选择尺寸、颜色和形状，class 本身不包含这些信息。
+  // 仅复用表现属性，保留刷新按钮自己的无障碍语义和交互状态。
+  button.className = referenceButton.className;
+  for (const attribute of BUTTON_APPEARANCE_ATTRIBUTES) {
+    const value = referenceButton.getAttribute(attribute);
+    if (value == null) button.removeAttribute(attribute);
+    else button.setAttribute(attribute, value);
+  }
+  const referenceContent = referenceButton.firstElementChild;
+  button.firstElementChild.className =
+    referenceContent instanceof HTMLSpanElement ? referenceContent.className : "";
+}
+
 function createButton(referenceButton) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = referenceButton.className;
   button.setAttribute(BUTTON_MARKER, "");
-  button.append(createRefreshIcon());
+  const content = document.createElement("span");
+  content.append(createRefreshIcon());
+  button.append(content);
+  syncButtonAppearance(button, referenceButton);
   button.addEventListener("click", handleRefreshClick);
   updateButtonState(button);
   return button;
@@ -243,7 +271,7 @@ function syncRefreshButton() {
     activeButton?.isConnected &&
     activeButton.parentElement === placement.actionGroup
   ) {
-    activeButton.className = placement.referenceButton.className;
+    syncButtonAppearance(activeButton, placement.referenceButton);
     updateButtonState(activeButton);
     return;
   }
