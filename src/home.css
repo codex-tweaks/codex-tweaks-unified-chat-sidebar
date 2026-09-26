@@ -1,18 +1,18 @@
-/* Codex 新对话页：复用原生 Home 模式状态的聊天 / Codex 选择器。 */
+/* 与原生首页相同的内容区位置、36px 胶囊和 mode-toggle 语义令牌。 */
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-toggle] {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: 50%;
+  position: fixed;
+  z-index: 30;
+  top: calc(var(--codex-tweaks-home-mode-y, 0px) + (var(--height-toolbar, 46px) + 8px) / 2);
   left: var(--codex-tweaks-home-mode-x, 50%);
   isolation: isolate;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   inline-size: max-content;
-  max-inline-size: calc(100% - 16px);
-  block-size: 32px;
+  max-inline-size: var(--codex-tweaks-home-mode-max-width, calc(100vw - 16px));
+  block-size: 36px;
   box-sizing: border-box;
-  padding: 2px;
+  padding: 0;
   border-radius: 999px;
   pointer-events: auto;
   -webkit-app-region: no-drag;
@@ -24,10 +24,13 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-surface] {
   position: absolute;
   z-index: 0;
-  inset: 0;
+  inset-inline: 1px;
+  top: 50%;
+  block-size: 34px;
+  transform: translateY(-50%);
   border-radius: inherit;
   pointer-events: none;
-  background: var(--color-background-secondary);
+  background: var(--color-background-mode-toggle-track, var(--color-surface-secondary));
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
@@ -36,26 +39,28 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   z-index: 1;
   grid-column: 1;
   grid-row: 1;
-  margin-block: -1px;
+  inline-size: calc(100% + 9px);
+  box-sizing: border-box;
+  margin-block: -0.5px;
+  margin-inline-start: -0.5px;
+  border: 0.5px solid var(--color-border-mode-toggle-selected, var(--color-border));
   border-radius: 999px;
   pointer-events: none;
-  background: var(--color-background-primary);
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 12%),
-    0 0 0 0.5px var(--color-border);
+  background: var(--color-background-mode-toggle-selected, var(--color-background-primary-soft));
+  box-shadow: var(--shadow-mode-toggle-selected, 0 2px 4px rgb(0 0 0 / 12%));
   transform: translateX(0);
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
   :where([data-codex-tweaks-home-mode-animate])
   [data-codex-tweaks-home-mode-indicator] {
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-toggle=""][data-codex-tweaks-home-mode="work"]
   [data-codex-tweaks-home-mode-indicator] {
-  transform: translateX(100%);
+  transform: translateX(calc(100% - 17px));
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
@@ -63,15 +68,15 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   position: relative;
   z-index: 2;
   grid-row: 1;
-  min-inline-size: 72px;
-  block-size: 28px;
-  padding-inline: 18px;
+  min-inline-size: 0;
+  block-size: 100%;
+  padding-inline: 40px;
   border: 0;
   border-radius: 999px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-mode-toggle-inactive, var(--color-text-secondary));
   background: transparent;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm, 14px);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
@@ -81,21 +86,23 @@ html[data-codex-tweaks-codex-home-mode-toggle]
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-button="chat"] {
   grid-column: 1;
+  padding-inline: 44px 36px;
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-button="work"] {
   grid-column: 2;
+  padding-inline: 36px 44px;
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-button]:hover:not(:disabled) {
-  color: var(--color-text-primary);
+  color: var(--color-text-mode-toggle-primary, var(--color-text-primary));
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-button][data-codex-tweaks-home-mode-selected] {
-  color: var(--color-text-primary);
+  color: var(--color-text-mode-toggle-primary, var(--color-text-primary));
 }
 
 html[data-codex-tweaks-codex-home-mode-toggle]
@@ -110,12 +117,10 @@ html[data-codex-tweaks-codex-home-mode-toggle]
   opacity: 0.45;
 }
 
-@media (max-width: 720px) {
-  html[data-codex-tweaks-codex-home-mode-toggle]
-    [data-codex-tweaks-home-mode-button] {
-    min-inline-size: 58px;
-    padding-inline: 10px;
-  }
+html[data-codex-tweaks-codex-home-mode-toggle]
+  [data-codex-tweaks-home-mode-compact]
+  [data-codex-tweaks-home-mode-button] {
+  padding-inline: 10px;
 }
 
 @media (prefers-reduced-motion: reduce) {

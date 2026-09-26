@@ -1,7 +1,7 @@
 import { createHomeModeReader, normalizeMode, readHomeMode } from "./home-state.js";
 
 export function activateHomeMode({ api, root }) {
-// 在顶部保持 Codex 模式时，为“新对话”页补回聊天 / Codex 选择器。
+// 在顶部保持 Codex 模式时，为“新对话”页补回聊天 / 工作选择器。
 // 选择器只改变 Codex 原生的 Home 撰写器模式状态，发送、建会话、项目与
 // 模型逻辑仍由客户端自己的组件处理。
 
@@ -151,11 +151,17 @@ function getHeaderHost() {
   const header = document.querySelector(
     'header[data-app-shell-header-layout], header[data-pip-obstacle="app-shell-header"]',
   );
+  const titlebar = header?.querySelector("[data-app-shell-main-titlebar]");
+  if (isVisible(titlebar)) return titlebar;
   return isVisible(header) ? header : null;
 }
 
 function updateTogglePosition(header) {
-  const surface = header.closest("[data-app-shell-main-surface]");
+  // 新版 titlebar 已提升到主内容之外；从同一窗口框架定位主内容，避免
+  // 回退成整个窗口中心（会被左侧栏与右侧面板的宽度偏移）。
+  const frame = header.closest("[data-app-shell-frame]") ?? document;
+  const surface = header.closest("[data-app-shell-main-surface]") ??
+    frame.querySelector("[data-app-shell-main-surface]");
   const viewport = surface?.querySelector(
     "[data-app-shell-main-content-layout]",
   );
@@ -169,14 +175,25 @@ function updateTogglePosition(header) {
     observedContent = content;
   }
 
-  // 标题栏左右按钮会随聊天 / Codex 模式变化；以主内容区域而非按钮之间
-  // 剩余的 flex 空间居中，切换时两个标签的位置保持不变。
+  // 与原生首页一样，在主内容顶部的工具栏高度内居中，并保留 8px 顶部
+  // 外边距。节点由包独立持有，避免移动 React 管理的标题或输入框。
   const contentRect = content.getBoundingClientRect();
-  const headerRect = header.getBoundingClientRect();
   const center = contentRect.left + contentRect.width / 2;
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-x",
-    `${center - headerRect.left - header.clientLeft}px`,
+    `${center}px`,
+  );
+  toggleNode.style.setProperty(
+    "--codex-tweaks-home-mode-y",
+    `${contentRect.top}px`,
+  );
+  toggleNode.style.setProperty(
+    "--codex-tweaks-home-mode-max-width",
+    `${Math.max(0, contentRect.width - 16)}px`,
+  );
+  toggleNode.toggleAttribute(
+    "data-codex-tweaks-home-mode-compact",
+    contentRect.width < 320,
   );
 }
 
@@ -196,7 +213,7 @@ function createToggleNode() {
 
   for (const [mode, label] of [
     ["chat", "聊天"],
-    ["work", "Codex"],
+    ["work", "工作"],
   ]) {
     const button = document.createElement("button");
     button.type = "button";
@@ -217,9 +234,7 @@ function ensureToggleNode() {
     toggleNode = createToggleNode();
     // 在插入和测量之前设好选中项，避免首帧从默认位置播放一次切换。
     updateToggleNode();
-    headerHost.append(toggleNode);
-  } else if (toggleNode.parentElement !== headerHost) {
-    headerHost.append(toggleNode);
+    document.body.append(toggleNode);
   }
   updateTogglePosition(headerHost);
 

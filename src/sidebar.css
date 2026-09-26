@@ -1,7 +1,17 @@
 /* Codex 模式下复用 ChatGPT 原生标题尾部来源文字与 hover 触发方式。 */
 html[data-codex-tweaks-unified-chat-sidebar]
   [data-codex-tweaks-unified-sidebar-created-source-label] {
+  display: none;
+  flex: none;
+  color: var(--color-text-tertiary, var(--color-text-secondary));
   white-space: nowrap;
+}
+
+/* 自带 hover 规则，不依赖宿主 Tailwind 是否仍生成 group-hover:inline。 */
+html[data-codex-tweaks-unified-chat-sidebar]
+  [data-codex-tweaks-unified-sidebar-source][role="button"]:is(:hover, :focus-within)
+  [data-codex-tweaks-unified-sidebar-created-source-label] {
+  display: inline;
 }
 
 /* 原生文字内容保持不动；需要改名时仅隐藏原节点并显示独立标签。 */

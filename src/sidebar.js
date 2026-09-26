@@ -38,9 +38,12 @@ function isVisible(element) {
 
 function getProductMode() {
   for (const button of document.querySelectorAll(
-    'button[aria-haspopup="menu"]',
+    'nav[role="navigation"] button[aria-haspopup="menu"]',
   )) {
     if (!isVisible(button)) continue;
+    const mode = button.getAttribute("aria-label")
+      ?.match(/(?:[：:]\s*)(Codex|ChatGPT)\s*$/)?.[1];
+    if (mode) return mode;
     const label = button.textContent.trim();
     if (label === "Codex" || label === "ChatGPT") return label;
   }
@@ -297,6 +300,7 @@ function getItemSource(itemKey, item, sourceMaps) {
   }
 
   if (
+    item.matches("[data-app-action-sidebar-thread-row]") ||
     item.querySelector(
       "[data-app-action-sidebar-thread-row], " +
         "[data-app-action-sidebar-project-row]",
@@ -306,38 +310,6 @@ function getItemSource(itemKey, item, sourceMaps) {
   }
 
   return null;
-}
-
-function getTopLevelListItems(section) {
-  return [...section.querySelectorAll('[role="listitem"]')].filter((item) => {
-    const ancestorItem = item.parentElement?.closest('[role="listitem"]');
-    return !ancestorItem || !section.contains(ancestorItem);
-  });
-}
-
-function getListItemsForRows(section, rowSelector) {
-  return [
-    ...new Set(
-      [...section.querySelectorAll(rowSelector)]
-        .map((row) => row.closest('[role="listitem"]'))
-        .filter((item) => item && section.contains(item)),
-    ),
-  ];
-}
-
-function findPrimaryRow(item, sectionKind) {
-  const stableRow = item.querySelector(
-    sectionKind === "projects"
-      ? "[data-app-action-sidebar-project-row]"
-      : "[data-app-action-sidebar-thread-row]",
-  );
-  if (stableRow) return stableRow;
-
-  return (
-    [...item.querySelectorAll('[role="button"]')].find(
-      (row) => !row.parentElement?.closest('[role="button"]'),
-    ) ?? null
-  );
 }
 
 function clearManagedSourceElement(element) {
@@ -390,7 +362,6 @@ function clearSourceMarkers(scope = document) {
 
 function createOwnedSourceLabel(insertionPoint) {
   const label = document.createElement("span");
-  label.className = "shrink-0 text-tertiary hidden group-hover:inline";
   label.setAttribute(SOURCE_CREATED_LABEL_MARKER, "");
   insertionPoint.after(label);
   return label;
@@ -466,22 +437,22 @@ function usesNativeCloudMarker(row, source) {
   );
 }
 
-function markSectionSources(section, sectionKind, markedElements) {
-  section.setAttribute(SECTION_MARKER, sectionKind);
-  // 项目文件夹本身不显示来源；只处理展开后位于项目内的具体任务。
-  const items =
-    sectionKind === "projects"
-      ? getListItemsForRows(
-          section,
-          "[data-app-action-sidebar-thread-row]",
-        )
-      : getTopLevelListItems(section);
-  const sourceMaps = findNativeSourceMaps(items[0]);
+function markSectionSources(section, markedElements) {
+  section.setAttribute(SECTION_MARKER, "threads");
+  // 从任务标题定位实际行，包含项目中的任务与自定义分组，跳过项目本身。
+  const rows = new Set(
+    [...section.querySelectorAll('[data-thread-title-trigger="true"]')]
+      .map((title) => title.closest(
+        '[data-app-action-sidebar-thread-row], [role="button"]',
+      ))
+      .filter((row) => row && section.contains(row)),
+  );
+  const sourceMaps = findNativeSourceMaps(rows.values().next().value);
 
-  for (const item of items) {
+  for (const row of rows) {
+    const item = row.closest('[role="listitem"]') ?? row;
     const source = getItemSource(getSidebarItemKey(item), item, sourceMaps);
-    const row = source ? findPrimaryRow(item, "recents") : null;
-    if (!source || !row) continue;
+    if (!source) continue;
 
     const effectiveSource = usesNativeCloudMarker(row, source)
       ? "codex-cloud"
@@ -535,27 +506,12 @@ function markUnifiedView() {
   const markedElements = new Set();
   const markedSections = new Set();
 
-  const pinned = document.querySelector(
-    'section[data-app-action-sidebar-section-heading="Pinned"]',
-  );
-  const projects = document.querySelector(
-    'section[data-app-action-sidebar-section-heading="Projects"]',
-  );
-  const recents = document.querySelector(
-    'section[data-app-action-sidebar-section-heading="Recents"]',
-  );
-
-  if (pinned) {
-    markSectionSources(pinned, "pinned", markedElements);
-    markedSections.add(pinned);
-  }
-  if (projects) {
-    markSectionSources(projects, "projects", markedElements);
-    markedSections.add(projects);
-  }
-  if (recents) {
-    markSectionSources(recents, "recents", markedElements);
-    markedSections.add(recents);
+  // 自定义分组也能包含项目和聊天；按实际任务行处理，不依赖分组标题。
+  for (const section of document.querySelectorAll(
+    "section[data-app-action-sidebar-section]",
+  )) {
+    markSectionSources(section, markedElements);
+    markedSections.add(section);
   }
 
   clearStaleSourceMarkers(markedElements);
@@ -575,16 +531,9 @@ function scanSidebar() {
     return;
   }
 
-  const section =
-    document.querySelector(
-      'section[data-app-action-sidebar-section-heading="Projects"]',
-    ) ??
-    document.querySelector(
-      'section[data-app-action-sidebar-section-heading="Recents"]',
-    ) ??
-    document.querySelector(
-      'section[data-app-action-sidebar-section-heading="Pinned"]',
-    );
+  const section = document.querySelector(
+    "section[data-app-action-sidebar-section]",
+  );
   if (!section) return;
 
   const sidebarFiber = findUnifiedSidebarFiber(section);
