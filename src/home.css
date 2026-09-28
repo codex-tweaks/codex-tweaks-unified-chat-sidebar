@@ -1,4 +1,4 @@
-/* 与原生首页相同的标题栏位置、36px 胶囊和 mode-toggle 语义令牌。 */
+/* 按平台跟随原生首页位置，保留 36px 胶囊和 mode-toggle 语义令牌。 */
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-toggle] {
   position: fixed;

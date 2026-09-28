@@ -20,6 +20,9 @@ const INDICATOR_MARKER = "data-codex-tweaks-home-mode-indicator";
 const FIBER_PROPERTY_PREFIX = "__reactFiber$";
 const SCAN_INTERVAL_MS = 1500;
 const runtimeHost = root ?? document.documentElement;
+const isWindows = /^win/i.test(
+  navigator.userAgentData?.platform ?? navigator.platform,
+);
 
 runtimeHost[RUNTIME_KEY]?.cleanup?.();
 
@@ -175,9 +178,9 @@ function updateTogglePosition(header) {
     observedContent = content;
   }
 
-  // 横向跟随主内容，纵向跟随标题栏的实际位置和高度。内容区可能已扣除
-  // 标题栏高度，不能再用它的 top 作为工具栏起点。保留原生选择器的 8px
-  // 顶部外边距；节点由包独立持有，避免移动 React 管理的标题或输入框。
+  // 横向始终跟随主内容。Windows 内容区已扣除标题栏高度，纵向改用
+  // 标题栏实测位置；macOS 保留内容区顶部与 --height-toolbar 的原生定位。
+  // 两端都保留原生选择器的 8px 顶部外边距。
   const contentRect = content.getBoundingClientRect();
   const headerRect = header.getBoundingClientRect();
   const center = contentRect.left + contentRect.width / 2;
@@ -187,12 +190,16 @@ function updateTogglePosition(header) {
   );
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-y",
-    `${headerRect.top}px`,
+    `${isWindows ? headerRect.top : contentRect.top}px`,
   );
-  toggleNode.style.setProperty(
-    "--codex-tweaks-home-mode-header-height",
-    `${headerRect.height}px`,
-  );
+  if (isWindows) {
+    toggleNode.style.setProperty(
+      "--codex-tweaks-home-mode-header-height",
+      `${headerRect.height}px`,
+    );
+  } else {
+    toggleNode.style.removeProperty("--codex-tweaks-home-mode-header-height");
+  }
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-max-width",
     `${Math.max(0, contentRect.width - 16)}px`,

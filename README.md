@@ -25,6 +25,7 @@
 
 - Codex Tweaks API：v3
 - 已测试平台：macOS
+- 首页模式选择器按平台定位：Windows 使用标题栏的实际位置与高度，macOS 使用内容区顶部与原生工具栏高度。
 - 已知限制：依赖 Codex 首页、统一侧栏、React Fiber、客户端资源和任务目录读取器的内部结构
 
 ## 开发
