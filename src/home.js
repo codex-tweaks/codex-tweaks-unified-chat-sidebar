@@ -175,9 +175,11 @@ function updateTogglePosition(header) {
     observedContent = content;
   }
 
-  // 与原生首页一样，在主内容顶部的工具栏高度内居中，并保留 8px 顶部
-  // 外边距。节点由包独立持有，避免移动 React 管理的标题或输入框。
+  // 横向跟随主内容，纵向跟随标题栏的实际位置和高度。内容区可能已扣除
+  // 标题栏高度，不能再用它的 top 作为工具栏起点。保留原生选择器的 8px
+  // 顶部外边距；节点由包独立持有，避免移动 React 管理的标题或输入框。
   const contentRect = content.getBoundingClientRect();
+  const headerRect = header.getBoundingClientRect();
   const center = contentRect.left + contentRect.width / 2;
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-x",
@@ -185,7 +187,11 @@ function updateTogglePosition(header) {
   );
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-y",
-    `${contentRect.top}px`,
+    `${headerRect.top}px`,
+  );
+  toggleNode.style.setProperty(
+    "--codex-tweaks-home-mode-header-height",
+    `${headerRect.height}px`,
   );
   toggleNode.style.setProperty(
     "--codex-tweaks-home-mode-max-width",

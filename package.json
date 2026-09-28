@@ -1,6 +1,6 @@
 {
   "name": "ct-unified-chat-sidebar",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "在 Codex 模式中显示 ChatGPT 聊天入口、统一聊天记录与手动刷新。",
   "keywords": ["codex-tweaks-package", "codex-tweaks-layout", "codex-tweaks-workflow", "codex-tweaks-chat"],
   "license": "MIT",

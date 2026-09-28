@@ -1,9 +1,9 @@
-/* 与原生首页相同的内容区位置、36px 胶囊和 mode-toggle 语义令牌。 */
+/* 与原生首页相同的标题栏位置、36px 胶囊和 mode-toggle 语义令牌。 */
 html[data-codex-tweaks-codex-home-mode-toggle]
   [data-codex-tweaks-home-mode-toggle] {
   position: fixed;
   z-index: 30;
-  top: calc(var(--codex-tweaks-home-mode-y, 0px) + (var(--height-toolbar, 46px) + 8px) / 2);
+  top: calc(var(--codex-tweaks-home-mode-y, 0px) + (var(--codex-tweaks-home-mode-header-height, var(--height-toolbar, 46px)) + 8px) / 2);
   left: var(--codex-tweaks-home-mode-x, 50%);
   isolation: isolate;
   display: inline-grid;
