@@ -360,10 +360,13 @@ function clearSourceMarkers(scope = document) {
   clearOrphanedNativeSourceLabels(scope);
 }
 
-function createOwnedSourceLabel(insertionPoint) {
-  const label = document.createElement("span");
+function ensureOwnedSourceLabel(insertionPoint, existingLabel) {
+  const label = existingLabel instanceof HTMLSpanElement
+    ? existingLabel
+    : document.createElement("span");
   label.setAttribute(SOURCE_CREATED_LABEL_MARKER, "");
-  insertionPoint.after(label);
+  // 原生标题以标题文本为 key，更新后会重建节点；同步校正独立标签的位置。
+  if (insertionPoint.nextSibling !== label) insertionPoint.after(label);
   return label;
 }
 
@@ -374,7 +377,6 @@ function findOrCreateThreadSourceLabel(row, sourceLabel) {
   const existingLabel = titleTrigger.querySelector(
     `[${SOURCE_CREATED_LABEL_MARKER}]`,
   );
-  if (existingLabel instanceof HTMLSpanElement) return existingLabel;
 
   const titleContainer = titleTrigger?.querySelector(":scope > span");
   const nativeLabel = titleContainer
@@ -393,18 +395,19 @@ function findOrCreateThreadSourceLabel(row, sourceLabel) {
   if (!(title instanceof HTMLSpanElement)) return null;
 
   if (nativeLabel?.textContent.trim() === sourceLabel) {
+    existingLabel?.remove();
     nativeLabel.removeAttribute(SOURCE_NATIVE_LABEL_MARKER);
     return nativeLabel;
   }
 
   if (nativeLabel) {
     nativeLabel.setAttribute(SOURCE_NATIVE_LABEL_MARKER, "");
-    return createOwnedSourceLabel(nativeLabel);
+    return ensureOwnedSourceLabel(nativeLabel, existingLabel);
   }
 
   // 不移动或包裹 React 管理的标题节点。直接插入独立标签，避免模式切换
   // 卸载时 React 仍按原父节点 removeChild 而触发 NotFoundError。
-  const label = createOwnedSourceLabel(title);
+  const label = ensureOwnedSourceLabel(title, existingLabel);
   title.parentElement?.setAttribute(SOURCE_CREATED_CONTAINER_MARKER, "");
   return label;
 }
