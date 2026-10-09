@@ -70,8 +70,8 @@ function findHomeModeInfo() {
   const candidates = [
     ...document.querySelectorAll('[role="main"]'),
     ...document.querySelectorAll('[data-codex-intelligence-trigger="true"]'),
-    document.querySelector("main"),
-    document.querySelector("[data-codex-composer]"),
+    ...document.querySelectorAll("main"),
+    ...document.querySelectorAll("[data-codex-composer]"),
     ...document.querySelectorAll('[contenteditable="true"][role="textbox"]'),
   ].filter(isVisible);
 
@@ -151,9 +151,9 @@ function patchModeAtom(info) {
 }
 
 function getHeaderHost() {
-  const header = document.querySelector(
+  const header = [...document.querySelectorAll(
     'header[data-app-shell-header-layout], header[data-pip-obstacle="app-shell-header"]',
-  );
+  )].find(isVisible);
   const titlebar = header?.querySelector("[data-app-shell-main-titlebar]");
   if (isVisible(titlebar)) return titlebar;
   return isVisible(header) ? header : null;
@@ -164,11 +164,11 @@ function updateTogglePosition(header) {
   // 回退成整个窗口中心（会被左侧栏与右侧面板的宽度偏移）。
   const frame = header.closest("[data-app-shell-frame]") ?? document;
   const surface = header.closest("[data-app-shell-main-surface]") ??
-    frame.querySelector("[data-app-shell-main-surface]");
-  const viewport = surface?.querySelector(
+    [...frame.querySelectorAll("[data-app-shell-main-surface]")].find(isVisible);
+  const viewport = [...(surface?.querySelectorAll(
     "[data-app-shell-main-content-layout]",
-  );
-  const content = isVisible(viewport) ? viewport : surface ?? header;
+  ) ?? [])].find(isVisible);
+  const content = viewport ?? surface ?? header;
 
   if (observedHeader !== header || observedContent !== content) {
     positionObserver.disconnect();

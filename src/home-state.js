@@ -85,7 +85,10 @@ function getSubscription(hook) {
   return null;
 }
 
-function findModeBinding(atom, store, preference) {
+function findModeBinding(atom, store, preference, seen = new Set()) {
+  if (seen.has(atom) || seen.size >= 16) return null;
+  seen.add(atom);
+
   const dependencies = readDependencies(atom, store);
   const productModeAtom = dependencies.find((dependency) => {
     if (typeof store.get(dependency) !== "boolean") return false;
@@ -97,7 +100,17 @@ function findModeBinding(atom, store, preference) {
       ),
     );
   });
-  if (!productModeAtom) return null;
+  if (!productModeAtom) {
+    // 首页订阅的是外层派生状态；沿模式依赖找到真正执行产品与权限判定
+    // 的 atom，在该层适配，保留外层原生逻辑。
+    for (const dependency of dependencies) {
+      if (typeof dependency.write === "function") continue;
+      if (!normalizeMode(store.get(dependency))) continue;
+      const binding = findModeBinding(dependency, store, preference, seen);
+      if (binding) return binding;
+    }
+    return null;
+  }
 
   for (const persistedModeAtom of dependencies) {
     const mode = store.get(persistedModeAtom);
@@ -108,7 +121,7 @@ function findModeBinding(atom, store, preference) {
       preference,
     );
     if (persistedAtom) {
-      return { productModeAtom, persistedModeAtom, persistedAtom };
+      return { atom, productModeAtom, persistedModeAtom, persistedAtom };
     }
   }
   return null;
